@@ -35,7 +35,14 @@ Route::prefix('v1')->group(function () {
 
         Route::get('home', HomeController::class);
 
-        Route::get('events', [EventController::class, 'index']);
+        Route::controller(EventController::class)->prefix('events')->group(function () {
+            Route::get('/', 'index');
+            Route::post('/', 'store');
+            Route::get('{event}', 'show')->whereNumber('event');
+            Route::put('{event}', 'update')->whereNumber('event');
+            Route::get('{event}/members', 'members')->whereNumber('event');
+            Route::get('{event}/contributions', 'contributions')->whereNumber('event');
+        });
 
         Route::controller(InvitationController::class)->prefix('invitations')->group(function () {
             Route::get('/', 'index');

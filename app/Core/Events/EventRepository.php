@@ -6,13 +6,17 @@ use App\Enums\EventScope;
 use App\Enums\MemberRole;
 use App\Enums\MemberStatus;
 use App\Models\Event;
+use App\Models\EventMember;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class EventRepository implements EventInterface
 {
+    private const EVENT_FIELDS = ['name', 'description', 'location', 'proposed_amount', 'target_amount', 'start_date', 'end_date'];
+
     public function forUser(User $user, ?EventScope $scope = null): Collection
     {
         return $this->withUserTotals(Event::query(), $user)
@@ -23,6 +27,88 @@ class EventRepository implements EventInterface
             })
             ->orderBy('start_date')
             ->get();
+    }
+
+    public function findForUser(User $user, int $eventId): Event
+    {
+        return $this->withUserTotals(Event::query(), $user)->with('schedules')->findOrFail($eventId);
+    }
+
+    public function create(User $owner, array $data): Event
+    {
+        $event = DB::transaction(function () use ($owner, $data) {
+            $event = $owner->ownedEvents()->create(Arr::only($data, self::EVENT_FIELDS));
+
+            $event->members()->create([
+                'user_id' => $owner->id,
+                'phone' => $owner->phone,
+                'role' => MemberRole::Owner,
+                'status' => MemberStatus::Joined,
+                'added_at' => now(),
+            ]);
+
+            $this->replaceCurriculum($event, $data['curriculum'] ?? []);
+
+            return $event;
+        });
+
+        return $this->findForUser($owner, $event->id);
+    }
+
+    public function update(Event $event, array $data): Event
+    {
+        DB::transaction(function () use ($event, $data) {
+            $event->update(Arr::only($data, self::EVENT_FIELDS));
+
+            if (array_key_exists('curriculum', $data)) {
+                $this->replaceCurriculum($event, $data['curriculum']);
+            }
+        });
+
+        return $this->findForUser($event->owner, $event->id);
+    }
+
+    public function members(Event $event): Collection
+    {
+        $totals = $event->contributions()
+            ->toBase()
+            ->groupBy('user_id')
+            ->selectRaw('user_id, sum(amount) as total')
+            ->pluck('total', 'user_id');
+
+        return $event->members()
+            ->whereIn('status', [MemberStatus::Joined, MemberStatus::Invited])
+            ->with('user:id,first_name,middle_name,last_name')
+            ->orderByRaw('case when role = ? then 0 else 1 end', [MemberRole::Owner->value])
+            ->orderByRaw('case when status = ? then 0 else 1 end', [MemberStatus::Joined->value])
+            ->orderBy('added_at')
+            ->orderBy('id')
+            ->get()
+            ->each(fn (EventMember $member) => $member->setAttribute('total_contributed', $totals[$member->user_id] ?? 0));
+    }
+
+    public function contributions(Event $event): Collection
+    {
+        return $event->contributions()
+            ->with('user:id,first_name,middle_name,last_name')
+            ->latest('paid_at')
+            ->latest('id')
+            ->get();
+    }
+
+    /**
+     * @param  list<array{title: string, date: string, description?: string|null}>  $items
+     */
+    private function replaceCurriculum(Event $event, array $items): void
+    {
+        $event->schedules()->delete();
+
+        $event->schedules()->createMany(array_map(fn (array $item, int $index) => [
+            'title' => $item['title'],
+            'scheduled_at' => $item['date'],
+            'description' => $item['description'] ?? null,
+            'sort_order' => $index,
+        ], $items, array_keys($items)));
     }
 
     /**
