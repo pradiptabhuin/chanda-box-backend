@@ -1,3 +1,4 @@
+BASE URL = https://chanda.feelathomecare.net/api/v1
 # Database Table design for ChandaBox app:
 We will use SQL database (MySQL) here. Below is the table with relation.
 
