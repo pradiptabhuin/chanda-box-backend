@@ -2,6 +2,7 @@
 
 namespace App\Core\Auth;
 
+use App\Core\Invitations\InvitationInterface;
 use App\Enums\TokenAbility;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -16,6 +17,8 @@ use Laravel\Sanctum\PersonalAccessToken;
  */
 class AuthRepository implements AuthInterface
 {
+    public function __construct(private InvitationInterface $invitationInterface) {}
+
     public function findByPhone(string $phone): ?User
     {
         return User::where('phone', $phone)->first();
@@ -23,11 +26,11 @@ class AuthRepository implements AuthInterface
 
     public function createUser(array $data): User
     {
-        return User::create([
+        return $this->registered(User::create([
             'name' => $data['name'],
             'phone' => $data['phone'],
             'password' => $data['password'],
-        ]);
+        ]));
     }
 
     public function storePendingRegistration(array $data): void
@@ -52,10 +55,10 @@ class AuthRepository implements AuthInterface
             return null;
         }
 
-        return User::create([
+        return $this->registered(User::create([
             ...$pending,
             'phone_verified_at' => now(),
-        ]);
+        ]));
     }
 
     public function issueTokens(User $user, ?string $sessionId = null): array
@@ -92,6 +95,16 @@ class AuthRepository implements AuthInterface
     public function revokeSession(User $user, PersonalAccessToken $token): void
     {
         $user->tokens()->where('name', $token->name)->delete();
+    }
+
+    /**
+     * Invitations sent to this phone before the account existed now belong to it.
+     */
+    private function registered(User $user): User
+    {
+        $this->invitationInterface->claimForNewUser($user);
+
+        return $user;
     }
 
     private function pendingRegistrationKey(string $phone): string

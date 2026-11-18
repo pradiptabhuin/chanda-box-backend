@@ -6,12 +6,16 @@ use App\Core\Auth\AuthInterface;
 use App\Core\Auth\AuthRepository;
 use App\Core\Events\EventInterface;
 use App\Core\Events\EventRepository;
+use App\Core\Invitations\InvitationInterface;
+use App\Core\Invitations\InvitationRepository;
 use App\Core\Otp\FirebaseOtpProvider;
 use App\Core\Otp\NullOtpProvider;
 use App\Core\Otp\OtpInterface;
 use App\Core\Otp\SmsOtpProvider;
 use App\Core\Sms\LogSmsProvider;
 use App\Core\Sms\SmsInterface;
+use App\Core\Wallet\WalletInterface;
+use App\Core\Wallet\WalletRepository;
 use App\Http\Requests\Auth\PhoneRequest;
 use App\Models\Contribution;
 use App\Models\Withdrawal;
@@ -31,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(EventInterface::class, EventRepository::class);
         $this->app->bind(AuthInterface::class, AuthRepository::class);
+        $this->app->bind(InvitationInterface::class, InvitationRepository::class);
+        $this->app->bind(WalletInterface::class, WalletRepository::class);
 
         $this->app->bind(SmsInterface::class, fn () => match (config('services.sms.driver')) {
             'log' => new LogSmsProvider,
