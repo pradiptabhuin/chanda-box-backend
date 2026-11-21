@@ -31,6 +31,11 @@ class EventPolicy
         return $this->isOwner($user, $event);
     }
 
+    public function invite(User $user, Event $event): bool
+    {
+        return $this->isOwner($user, $event);
+    }
+
     private function isOwner(User $user, Event $event): bool
     {
         return $event->owner_id === $user->id;

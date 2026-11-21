@@ -2,6 +2,7 @@
 
 use App\Enums\TokenAbility;
 use App\Http\Controllers\Frontend\AuthController;
+use App\Http\Controllers\Frontend\DeviceTokenController;
 use App\Http\Controllers\Frontend\EventController;
 use App\Http\Controllers\Frontend\HomeController;
 use App\Http\Controllers\Frontend\InvitationController;
@@ -33,6 +34,11 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
 
+        Route::controller(DeviceTokenController::class)->prefix('me/device-token')->group(function () {
+            Route::post('/', 'store');
+            Route::delete('/', 'destroy');
+        });
+
         Route::get('home', HomeController::class);
 
         Route::controller(EventController::class)->prefix('events')->group(function () {
@@ -43,6 +49,8 @@ Route::prefix('v1')->group(function () {
             Route::get('{event}/members', 'members')->whereNumber('event');
             Route::get('{event}/contributions', 'contributions')->whereNumber('event');
         });
+
+        Route::post('events/{event}/invitations', [InvitationController::class, 'store'])->whereNumber('event');
 
         Route::controller(InvitationController::class)->prefix('invitations')->group(function () {
             Route::get('/', 'index');

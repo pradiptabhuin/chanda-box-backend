@@ -2,12 +2,13 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Channels\PushChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
 /**
  * In-app inbox notification, stored in the `notifications` table and polled by the app
- * (GET /notifications). Subclasses only describe the message.
+ * (GET /notifications), and pushed to the user's phones via FCM. Subclasses only describe the message.
  */
 abstract class AppNotification extends Notification
 {
@@ -37,7 +38,7 @@ abstract class AppNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', PushChannel::class];
     }
 
     public function databaseType(object $notifiable): string

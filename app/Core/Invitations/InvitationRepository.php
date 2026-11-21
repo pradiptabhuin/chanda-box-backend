@@ -2,7 +2,10 @@
 
 namespace App\Core\Invitations;
 
+use App\Enums\MemberRole;
 use App\Enums\MemberStatus;
+use App\Http\Requests\Auth\PhoneRequest;
+use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\User;
 use App\Notifications\InvitationAccepted;
@@ -12,6 +15,71 @@ use Illuminate\Support\Facades\DB;
 
 class InvitationRepository implements InvitationInterface
 {
+    private const VALID_PHONE = '/^[6-9]\d{9}$/';
+
+    public function invite(Event $event, User $inviter, array $phones): array
+    {
+        $skipped = [];
+        $valid = [];
+
+        foreach ($phones as $raw) {
+            $phone = PhoneRequest::normalizePhone($raw);
+
+            if (! preg_match(self::VALID_PHONE, $phone)) {
+                $skipped[] = $raw;
+            } elseif (in_array($phone, $valid, true)) {
+                $skipped[] = $phone;
+            } else {
+                $valid[] = $phone;
+            }
+        }
+
+        $invitations = DB::transaction(function () use ($event, $inviter, $valid, &$skipped) {
+            $existing = $event->members()->whereIn('phone', $valid)->lockForUpdate()->get()->keyBy('phone');
+            $users = User::whereIn('phone', $valid)->pluck('id', 'phone');
+            $invitations = [];
+
+            foreach ($valid as $phone) {
+                /** @var EventMember|null $member */
+                $member = $existing->get($phone);
+
+                if ($member !== null && in_array($member->status, [MemberStatus::Joined, MemberStatus::Invited], true)) {
+                    $skipped[] = $phone;
+
+                    continue;
+                }
+
+                $attributes = [
+                    'user_id' => $users->get($phone),
+                    'role' => MemberRole::Member,
+                    'status' => MemberStatus::Invited,
+                    'invited_by' => $inviter->id,
+                    'invited_at' => now(),
+                    'responded_at' => null,
+                    'added_at' => null,
+                    'left_at' => null,
+                ];
+
+                $invitations[] = $member !== null
+                    ? tap($member)->update($attributes)
+                    : $event->members()->create(['phone' => $phone, ...$attributes]);
+            }
+
+            return $invitations;
+        });
+
+        foreach ($invitations as $invitation) {
+            if ($invitation->user_id === null) {
+                continue;
+            }
+
+            $invitation->setRelation('event', $event)->setRelation('inviter', $inviter);
+            $invitation->user->notify(new InvitationReceived($invitation));
+        }
+
+        return ['invited' => count($invitations), 'skipped' => $skipped];
+    }
+
     public function pendingFor(User $user): Collection
     {
         return $user->pendingInvitations()

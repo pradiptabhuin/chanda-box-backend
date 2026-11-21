@@ -12,6 +12,9 @@ use App\Core\Otp\FirebaseOtpProvider;
 use App\Core\Otp\NullOtpProvider;
 use App\Core\Otp\OtpInterface;
 use App\Core\Otp\SmsOtpProvider;
+use App\Core\Push\FcmPushProvider;
+use App\Core\Push\LogPushProvider;
+use App\Core\Push\PushInterface;
 use App\Core\Sms\LogSmsProvider;
 use App\Core\Sms\SmsInterface;
 use App\Core\Wallet\WalletInterface;
@@ -48,6 +51,12 @@ class AppServiceProvider extends ServiceProvider
             'sms' => new SmsOtpProvider($app->make(SmsInterface::class)),
             'firebase' => new FirebaseOtpProvider(config('services.firebase.project_id')),
             default => throw new InvalidArgumentException('Unsupported OTP_DRIVER ['.config('services.otp.driver').'].'),
+        });
+
+        $this->app->bind(PushInterface::class, fn () => match (config('services.push.driver')) {
+            'log' => new LogPushProvider,
+            'fcm' => FcmPushProvider::fromCredentialsFile(config('services.firebase.credentials')),
+            default => throw new InvalidArgumentException('Unsupported PUSH_DRIVER ['.config('services.push.driver').'].'),
         });
     }
 

@@ -38,8 +38,14 @@ return [
         'driver' => env('SMS_DRIVER', 'log'),
     ],
 
+    'push' => [
+        'driver' => env('PUSH_DRIVER', 'log'),
+    ],
+
     'firebase' => [
         'project_id' => env('FIREBASE_PROJECT_ID'),
+        // Service-account JSON key (Firebase console → Project settings → Service accounts), used for FCM.
+        'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/private/firebase-credentials.json')),
     ],
 
     'slack' => [

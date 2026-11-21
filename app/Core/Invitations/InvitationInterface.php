@@ -2,15 +2,27 @@
 
 namespace App\Core\Invitations;
 
+use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
- * Invitations the user has received. An invitation is an `event_members` row with status `invited`.
+ * Sending and answering invitations. An invitation is an `event_members` row with status `invited`.
  */
 interface InvitationInterface
 {
+    /**
+     * Invite phone numbers to the event and notify the ones already registered.
+     *
+     * Skips invalid numbers, duplicates, the owner, joined members and pending invitations;
+     * someone who declined or was removed is invited again.
+     *
+     * @param  list<string>  $phones  Raw input; normalised to 10 digits here.
+     * @return array{invited: int, skipped: list<string>}
+     */
+    public function invite(Event $event, User $inviter, array $phones): array;
+
     /**
      * Pending invitations, newest first, with the event and inviter loaded.
      *
