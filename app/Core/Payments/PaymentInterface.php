@@ -12,11 +12,14 @@ use Illuminate\Validation\ValidationException;
 interface PaymentInterface
 {
     /**
-     * Opens a Razorpay order plus a single-use UPI QR for the same amount and stores the attempt.
+     * Opens a Razorpay order plus (when the account supports it) a single-use UPI QR for the same
+     * amount, and stores the attempt. `$member` is set when the owner pays on a member's behalf.
+     * The payer is charged the contribution plus the platform fee.
      *
+     * @throws ValidationException when the organiser has no active Route payout account
      * @throws PaymentGatewayException
      */
-    public function createOrder(User $payer, Event $event, float $amount): Payment;
+    public function createOrder(User $payer, Event $event, float $amount, ?User $member = null): Payment;
 
     /**
      * Checkout flow: checks the signature the app got from Razorpay, then captures. 404 if the
@@ -27,7 +30,8 @@ interface PaymentInterface
     public function verifyCheckout(User $payer, string $orderId, string $paymentId, string $signature): Payment;
 
     /**
-     * The payer's attempt, marked expired once its QR has closed unpaid. 404 if it isn't theirs.
+     * The payer's attempt, 404 if it isn't theirs. While unpaid it is checked against Razorpay
+     * (so payments confirm even without webhooks), and marked expired once its QR has closed.
      */
     public function findForPayer(User $payer, string $orderId): Payment;
 

@@ -49,4 +49,9 @@ interface AuthInterface
      * Revoke both tokens of the session the given token belongs to.
      */
     public function revokeSession(User $user, PersonalAccessToken $token): void;
+
+    /**
+     * Sign out every device except the one the given token belongs to (e.g. after a password change).
+     */
+    public function revokeOtherSessions(User $user, PersonalAccessToken $token): void;
 }

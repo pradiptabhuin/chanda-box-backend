@@ -2,10 +2,16 @@
 
 namespace App\Core\Payments;
 
+use App\Enums\RouteStatus;
 use App\Exceptions\PaymentGatewayException;
 use Carbon\CarbonInterface;
 
 /**
+ * @phpstan-type GatewayPayment array{id: string, status: string, amount: float, via_qr: bool}
+ * @phpstan-type LinkedAccountDetails array{reference_id: string, name: string, email: string, phone: string, pan: string|null, street: string, city: string, state: string, postal_code: string}
+ * @phpstan-type SettlementBank array{account_number: string, ifsc: string, holder_name: string}
+ * @phpstan-type RouteState array{status: RouteStatus, reason: string|null}
+ *
  * The payment provider (Razorpay). Amounts are in rupees; implementations convert to the
  * provider's minor unit. Every call that reaches the provider throws PaymentGatewayException on failure.
  */
@@ -33,6 +39,73 @@ interface PaymentGatewayInterface
      * @throws PaymentGatewayException
      */
     public function createUpiQr(float $amount, string $label, CarbonInterface $closeBy, array $notes = []): array;
+
+    /**
+     * Payments made against an order (Checkout) or a QR, newest first. Amounts in rupees.
+     *
+     * @return list<GatewayPayment>
+     *
+     * @throws PaymentGatewayException
+     */
+    public function paymentsFor(?string $orderId, ?string $qrId): array;
+
+    /**
+     * @return GatewayPayment
+     *
+     * @throws PaymentGatewayException
+     */
+    public function fetchPayment(string $paymentId): array;
+
+    /**
+     * Settles an authorized payment (needed when the account isn't set to auto-capture).
+     *
+     * @throws PaymentGatewayException
+     */
+    public function capturePayment(string $paymentId, float $amount, string $currency): void;
+
+    /**
+     * Opens a Route linked account (with its stakeholder) for a payout account owner.
+     *
+     * @param  LinkedAccountDetails  $details
+     *
+     * @throws PaymentGatewayException
+     */
+    public function createLinkedAccount(array $details): string;
+
+    /**
+     * Requests the Route product on a linked account.
+     *
+     * @return array{product_id: string, status: RouteStatus, reason: string|null}
+     *
+     * @throws PaymentGatewayException
+     */
+    public function requestRoute(string $accountId): array;
+
+    /**
+     * Sets (or changes) the bank a linked account is settled to.
+     *
+     * @param  SettlementBank  $bank
+     * @return RouteState
+     *
+     * @throws PaymentGatewayException
+     */
+    public function setSettlementBank(string $accountId, string $productId, array $bank): array;
+
+    /**
+     * @return RouteState
+     *
+     * @throws PaymentGatewayException
+     */
+    public function routeStatus(string $accountId, string $productId): array;
+
+    /**
+     * Moves part of a captured payment to a linked account; returns the transfer id.
+     *
+     * @param  array<string, scalar>  $notes
+     *
+     * @throws PaymentGatewayException
+     */
+    public function transfer(string $paymentId, string $accountId, float $amount, string $currency, array $notes = []): string;
 
     /**
      * Checks the signature Checkout returns to the app after a successful payment.

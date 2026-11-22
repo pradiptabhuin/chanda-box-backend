@@ -6,6 +6,7 @@ use App\Core\Events\EventInterface;
 use App\Enums\EventScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Event\SaveEventRequest;
+use App\Http\Requests\Event\UpdateEventStatusRequest;
 use App\Http\Resources\ContributionResource;
 use App\Http\Resources\EventMemberResource;
 use App\Http\Resources\EventResource;
@@ -52,6 +53,25 @@ class EventController extends Controller
     public function update(SaveEventRequest $request, Event $event): EventResource
     {
         return new EventResource($this->eventInterface->update($event, $request->eventData()));
+    }
+
+    /**
+     * PUT /events/{event}/status
+     */
+    public function updateStatus(UpdateEventStatusRequest $request, Event $event): EventResource
+    {
+        return new EventResource($this->eventInterface->changeStatus($event, $request->status()));
+    }
+
+    /**
+     * DELETE /events/{event}/members/{member}: remove a member or cancel an invitation.
+     */
+    public function removeMember(Event $event, int $member): JsonResponse
+    {
+        Gate::authorize('removeMember', $event);
+        $this->eventInterface->removeMember($event, $member);
+
+        return response()->json(['message' => 'Removed.']);
     }
 
     public function members(Event $event): AnonymousResourceCollection

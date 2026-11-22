@@ -9,3 +9,6 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
+// Retry Route transfers that failed right after capture (e.g. Razorpay was briefly unreachable).
+Schedule::command('payments:transfer')->everyTenMinutes()->withoutOverlapping();

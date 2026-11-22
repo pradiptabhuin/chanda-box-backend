@@ -21,7 +21,11 @@ class PaymentOrderResource extends JsonResource
     {
         return [
             'order_id' => $this->razorpay_order_id,
+            'member_id' => $this->on_behalf_of,
+            // What the organiser receives; the payer is charged `total`.
             'amount' => (float) $this->amount,
+            'platform_fee' => (float) $this->platform_fee,
+            'total' => $this->chargedAmount(),
             'currency' => $this->currency,
             'key_id' => app(PaymentGatewayInterface::class)->publicKey(),
             'qr_payload' => $this->qr_payload,

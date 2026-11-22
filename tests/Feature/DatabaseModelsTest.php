@@ -5,16 +5,12 @@ namespace Tests\Feature;
 use App\Enums\MemberRole;
 use App\Enums\MemberStatus;
 use App\Enums\PaymentMethod;
-use App\Enums\TransactionStatus;
-use App\Enums\TransactionType;
 use App\Models\BankAccount;
 use App\Models\Contribution;
 use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\EventSchedule;
 use App\Models\User;
-use App\Models\WalletTransaction;
-use App\Models\Withdrawal;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -81,18 +77,13 @@ class DatabaseModelsTest extends TestCase
         EventMember::factory()->invited()->for($member->event)->create(['phone' => $member->phone, 'user_id' => null]);
     }
 
-    public function test_contribution_links_payment_and_credits_the_owner_wallet(): void
+    public function test_contribution_links_its_payment(): void
     {
         $contribution = Contribution::factory()->create();
-        $credit = WalletTransaction::factory()->forContribution($contribution)->create();
 
         $this->assertTrue($contribution->payment->isPaid());
         $this->assertSame(PaymentMethod::UpiQr, $contribution->method);
         $this->assertTrue($contribution->payment->contribution->is($contribution));
-        $this->assertTrue($credit->source->is($contribution));
-        $this->assertTrue($contribution->walletTransaction->is($credit));
-        $this->assertSame($contribution->event->owner_id, $credit->user_id);
-        $this->assertSame('contribution', DB::table('wallet_transactions')->value('source_type'));
     }
 
     public function test_one_payment_can_only_produce_one_contribution(): void
@@ -116,19 +107,18 @@ class DatabaseModelsTest extends TestCase
         $this->assertArrayNotHasKey('account_number', $account->toArray());
     }
 
-    public function test_withdrawal_keeps_its_soft_deleted_bank_account_and_debit(): void
+    public function test_payout_account_pan_is_encrypted_and_the_latest_account_is_the_users(): void
     {
-        $withdrawal = Withdrawal::factory()->create();
-        $debit = WalletTransaction::factory()->debit()->create([
-            'user_id' => $withdrawal->user_id,
-            'source_id' => $withdrawal->id,
-        ]);
-        $withdrawal->bankAccount->delete();
+        $user = User::factory()->create();
+        $old = BankAccount::factory()->for($user)->create();
+        $old->delete();
+        $current = BankAccount::factory()->for($user)->active()->create(['pan' => 'ABCDE1234F']);
 
-        $this->assertNotNull($withdrawal->fresh()->bankAccount);
-        $this->assertSame(TransactionType::Debit, $debit->type);
-        $this->assertSame(TransactionStatus::Pending, $debit->status);
-        $this->assertTrue($withdrawal->walletTransaction->is($debit));
+        $this->assertNotSame('ABCDE1234F', DB::table('bank_accounts')->where('id', $current->id)->value('pan'));
+        $this->assertSame('ABCDE1234F', $current->fresh()->pan);
+        $this->assertArrayNotHasKey('pan', $current->toArray());
+        $this->assertTrue($user->payoutAccount->is($current));
+        $this->assertTrue($user->payoutAccount->isActive());
     }
 
     public function test_users_receive_database_notifications(): void

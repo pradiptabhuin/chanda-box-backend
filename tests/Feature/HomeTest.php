@@ -4,13 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\MemberStatus;
 use App\Enums\TokenAbility;
-use App\Enums\TransactionStatus;
 use App\Models\Contribution;
 use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\Payment;
 use App\Models\User;
-use App\Models\WalletTransaction;
 use App\Notifications\InvitationReceived;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +17,7 @@ use Tests\TestCase;
 
 /**
  * The home screen API and the endpoints it is built from:
- * /home, /events, /invitations, /wallet and /notifications.
+ * /home, /events, /invitations and /notifications.
  */
 class HomeTest extends TestCase
 {
@@ -34,7 +32,7 @@ class HomeTest extends TestCase
         $this->me = User::factory()->create(['first_name' => 'Demo', 'last_name' => 'User']);
     }
 
-    public function test_home_returns_wallet_events_and_invitations_in_one_response(): void
+    public function test_home_returns_transaction_totals_events_and_invitations_in_one_response(): void
     {
         $owned = $this->eventOwnedBy($this->me, ['name' => 'Durga Puja', 'start_date' => now()->addDays(10)]);
         $joined = $this->eventJoinedBy($this->me, ['name' => 'Kali Puja', 'start_date' => now()->addDays(5)]);
@@ -43,13 +41,15 @@ class HomeTest extends TestCase
 
         $this->pay($this->me, $joined, 701);
         $this->pay(User::factory()->create(), $owned, 1001);
-        WalletTransaction::factory()->for($this->me)->create(['amount' => 1001]);
 
         $this->signIn($this->me);
 
         $this->getJson('/api/v1/home')
             ->assertOk()
-            ->assertJsonPath('wallet.balance', 1001)
+            ->assertJsonPath('transactions.received', 1001)
+            ->assertJsonPath('transactions.sent', 701)
+            ->assertJsonPath('transactions.total', 1702)
+            ->assertJsonMissingPath('wallet')
             ->assertJsonCount(1, 'events.owned')
             ->assertJsonPath('events.owned.0.id', $owned->id)
             ->assertJsonPath('events.owned.0.my_role', 'owner')
@@ -154,26 +154,6 @@ class HomeTest extends TestCase
         $this->postJson("/api/v1/invitations/{$invitation->id}/accept")->assertNotFound();
         $this->postJson("/api/v1/invitations/{$invitation->id}/decline")->assertNotFound();
         $this->assertSame(MemberStatus::Invited, $invitation->fresh()->status);
-    }
-
-    public function test_wallet_balance_subtracts_withdrawn_and_pending_withdrawals(): void
-    {
-        WalletTransaction::factory()->for($this->me)->create(['amount' => 5000]);
-        WalletTransaction::factory()->for($this->me)->create(['amount' => 2000]);
-        WalletTransaction::factory()->for($this->me)->debit(TransactionStatus::Success)->create(['amount' => 1500]);
-        WalletTransaction::factory()->for($this->me)->debit(TransactionStatus::Pending)->create(['amount' => 500]);
-        WalletTransaction::factory()->for($this->me)->debit(TransactionStatus::Failed)->create(['amount' => 9999]);
-        WalletTransaction::factory()->create(['amount' => 7777]); // another user's
-        $this->signIn($this->me);
-
-        $this->getJson('/api/v1/wallet')
-            ->assertOk()
-            ->assertExactJson([
-                'balance' => 5000,
-                'total_received' => 7000,
-                'total_withdrawn' => 1500,
-                'pending_withdrawal' => 500,
-            ]);
     }
 
     public function test_registering_claims_invitations_sent_to_the_phone(): void

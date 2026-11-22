@@ -33,12 +33,36 @@ class EventPolicy
         return $event->status === EventStatus::Active && $this->viewActivity($user, $event);
     }
 
+    /**
+     * Only the owner records payments for someone else.
+     */
+    public function payOnBehalf(User $user, Event $event): bool
+    {
+        return $this->isOwner($user, $event) && $this->contribute($user, $event);
+    }
+
+    /**
+     * A cancelled event is final: no more edits or invitations.
+     */
     public function update(User $user, Event $event): bool
+    {
+        return $this->isOwner($user, $event) && $event->status !== EventStatus::Cancelled;
+    }
+
+    public function invite(User $user, Event $event): bool
+    {
+        return $this->update($user, $event);
+    }
+
+    /**
+     * Close, reopen or cancel (the transition rules live in EventRepository::changeStatus()).
+     */
+    public function changeStatus(User $user, Event $event): bool
     {
         return $this->isOwner($user, $event);
     }
 
-    public function invite(User $user, Event $event): bool
+    public function removeMember(User $user, Event $event): bool
     {
         return $this->isOwner($user, $event);
     }

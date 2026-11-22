@@ -3,8 +3,11 @@
 namespace App\Core\Events;
 
 use App\Enums\EventScope;
+use App\Enums\EventStatus;
 use App\Enums\MemberRole;
 use App\Enums\MemberStatus;
+use App\Enums\RouteStatus;
+use App\Models\BankAccount;
 use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\User;
@@ -12,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class EventRepository implements EventInterface
 {
@@ -70,6 +74,41 @@ class EventRepository implements EventInterface
         return $this->findForUser($event->owner, $event->id);
     }
 
+    public function changeStatus(Event $event, EventStatus $status): Event
+    {
+        if ($event->status === EventStatus::Cancelled && $status !== EventStatus::Cancelled) {
+            throw ValidationException::withMessages(['status' => "A cancelled event can't be reopened."]);
+        }
+
+        if ($status === EventStatus::Cancelled && $event->contributions()->exists()) {
+            throw ValidationException::withMessages([
+                'status' => 'Money has already been collected for this event. Close it instead.',
+            ]);
+        }
+
+        $event->update(['status' => $status]);
+
+        return $this->findForUser($event->owner, $event->id);
+    }
+
+    public function removeMember(Event $event, int $memberId): void
+    {
+        /** @var EventMember $member */
+        $member = $event->members()
+            ->whereKey($memberId)
+            ->whereIn('status', [MemberStatus::Joined, MemberStatus::Invited])
+            ->firstOrFail();
+
+        if ($member->isOwner()) {
+            throw ValidationException::withMessages(['member' => "The organiser can't be removed."]);
+        }
+
+        $member->update([
+            'status' => MemberStatus::Removed,
+            'left_at' => $member->status === MemberStatus::Joined ? now() : null,
+        ]);
+    }
+
     public function members(Event $event): Collection
     {
         $totals = $event->contributions()
@@ -80,7 +119,7 @@ class EventRepository implements EventInterface
 
         return $event->members()
             ->whereIn('status', [MemberStatus::Joined, MemberStatus::Invited])
-            ->with('user:id,first_name,middle_name,last_name')
+            ->with('user:'.User::SUMMARY_COLUMNS)
             ->orderByRaw('case when role = ? then 0 else 1 end', [MemberRole::Owner->value])
             ->orderByRaw('case when status = ? then 0 else 1 end', [MemberStatus::Joined->value])
             ->orderBy('added_at')
@@ -92,7 +131,7 @@ class EventRepository implements EventInterface
     public function contributions(Event $event): Collection
     {
         return $event->contributions()
-            ->with('user:id,first_name,middle_name,last_name')
+            ->with(['user:'.User::SUMMARY_COLUMNS, 'payer:'.User::SUMMARY_COLUMNS])
             ->latest('paid_at')
             ->latest('id')
             ->get();
@@ -122,11 +161,17 @@ class EventRepository implements EventInterface
     private function withUserTotals(Builder $query, User $user): Builder
     {
         return $query
-            ->with('owner:id,first_name,middle_name,last_name')
+            ->with('owner:'.User::SUMMARY_COLUMNS)
             ->withSum('contributions as total_collected', 'amount')
             ->withCount('joinedMembers as member_count')
             ->withCount(['contributions as contributor_count' => fn (Builder $q) => $q->select(DB::raw('count(distinct user_id)'))])
-            ->withSum(['contributions as my_contribution' => fn (Builder $q) => $q->where('user_id', $user->id)], 'amount');
+            ->withSum(['contributions as my_contribution' => fn (Builder $q) => $q->where('user_id', $user->id)], 'amount')
+            // Whether the organiser can be paid online (an active Route payout account).
+            ->addSelect(['owner_route_active' => BankAccount::query()
+                ->selectRaw('1')
+                ->whereColumn('user_id', 'events.owner_id')
+                ->where('route_status', RouteStatus::Active)
+                ->limit(1)]);
     }
 
     /**

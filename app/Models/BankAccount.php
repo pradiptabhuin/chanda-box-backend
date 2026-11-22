@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RouteStatus;
 use Database\Factories\BankAccountFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -9,18 +10,18 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * A user's payout destination. The account number is stored encrypted and must
- * only ever leave the API masked, via the `masked_account_number` attribute.
+ * A user's payout account: the bank Razorpay Route pays their events' online contributions into.
+ * One per user. The account number and PAN are stored encrypted and never leave the API in full.
  */
 #[Fillable([
-    'user_id', 'holder_name', 'account_number', 'ifsc', 'bank_name', 'upi_id',
-    'is_primary', 'razorpay_contact_id', 'razorpay_fund_account_id',
+    'user_id', 'holder_name', 'account_number', 'ifsc', 'bank_name',
+    'email', 'pan', 'street', 'city', 'state', 'postal_code',
+    'razorpay_account_id', 'razorpay_product_id', 'route_status', 'route_status_reason',
 ])]
-#[Hidden(['account_number', 'razorpay_contact_id', 'razorpay_fund_account_id'])]
+#[Hidden(['account_number', 'pan', 'razorpay_account_id', 'razorpay_product_id'])]
 class BankAccount extends Model
 {
     /** @use HasFactory<BankAccountFactory> */
@@ -33,7 +34,8 @@ class BankAccount extends Model
     {
         return [
             'account_number' => 'encrypted',
-            'is_primary' => 'boolean',
+            'pan' => 'encrypted',
+            'route_status' => RouteStatus::class,
         ];
     }
 
@@ -72,11 +74,8 @@ class BankAccount extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * @return HasMany<Withdrawal, $this>
-     */
-    public function withdrawals(): HasMany
+    public function isActive(): bool
     {
-        return $this->hasMany(Withdrawal::class);
+        return $this->route_status === RouteStatus::Active;
     }
 }

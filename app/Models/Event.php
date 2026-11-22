@@ -91,6 +91,14 @@ class Event extends Model
     }
 
     /**
+     * @return HasMany<CashRequest, $this>
+     */
+    public function cashRequests(): HasMany
+    {
+        return $this->hasMany(CashRequest::class);
+    }
+
+    /**
      * @return HasMany<Contribution, $this>
      */
     public function contributions(): HasMany

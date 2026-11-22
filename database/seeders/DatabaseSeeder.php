@@ -24,8 +24,6 @@ class DatabaseSeeder extends Seeder
             EventMemberSeeder::class,
             PaymentSeeder::class,
             ContributionSeeder::class,
-            WithdrawalSeeder::class,
-            WalletTransactionSeeder::class,
             NotificationSeeder::class,
             WebhookEventSeeder::class,
         ]);

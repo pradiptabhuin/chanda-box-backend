@@ -1,7 +1,134 @@
+PROGRESS
 1. Login Register Done
 2. Home Page Done.
 3. New event create Done
-4. Invition process with notification
+4. Invitation process with notification Done
+5. Event details, payments (cash / online / on behalf), Transactions, payout account, profile Done
 
-TODO--
-Now make the payment process.
+
+=====================================================================
+EXTERNAL TO-DO (things that can't be done in code; do them in order)
+=====================================================================
+
+---------------------------------------------------------------------
+A. RAZORPAY  (dashboard.razorpay.com)
+---------------------------------------------------------------------
+[ ] 1. Finish business KYC / account activation, so Live mode is enabled.
+[ ] 2. Settings > API Keys: generate keys (Test first, Live later). Put in .env:
+         RAZORPAY_KEY_ID=rzp_test_...      (rzp_live_... in production)
+         RAZORPAY_KEY_SECRET=...
+       The app gets the key from the API, so nothing to change in the app.
+[ ] 3. Settings > Webhooks > Add webhook (optional but recommended; payments also
+       confirm without it because the app polls and the API asks Razorpay):
+         URL:     https://chanda.feelathomecare.net/api/v1/webhooks/razorpay
+         Secret:  any long random string -> RAZORPAY_WEBHOOK_SECRET in .env
+         Events:  payment.captured, qr_code.credited
+[ ] 4. Ask Razorpay support to ENABLE ROUTE on the account (needed so online
+       contributions go straight to each organiser's bank). Not on by default.
+[ ] 5. Ask Razorpay which linked-account "category" / "subcategory" to use for
+       puja / community collection committees, and set in .env:
+         RAZORPAY_LINKED_CATEGORY=...      (default "others" is a placeholder)
+         RAZORPAY_LINKED_SUBCATEGORY=...
+       Also confirm "business_type" for organisers (default: individual).
+[ ] 6. Ask Razorpay whether QR Codes (UPI QR) are enabled on the account.
+       If not, the app still works (goes straight to Checkout), but the QR won't show.
+[ ] 7. Decide who pays card / netbanking charges:
+       - If the payer should pay: ask Razorpay to enable "Customer Fee Bearer",
+         then set RAZORPAY_CUSTOMER_FEE_BEARER=true and RAZORPAY_CARD_FEE_PERCENT
+         to the rate on your Razorpay pricing page.
+       - If not: leave it false; ChandaBox absorbs card charges (can exceed the ₹2 fee).
+       UPI is always ₹0 to the payer (required by law).
+[ ] 8. Check the payment capture setting is "Automatic" (the API also captures
+       authorized payments itself, so this is just a safety net).
+[ ] 9. When steps 4–5 are done: set RAZORPAY_ROUTE_ENABLED=true, then run once
+         php artisan payouts:link
+       (registers payout accounts saved while Route was off).
+       Until then online payment is OFF in the app and members can only pay cash.
+[ ] 10. Test end to end in Test mode first (test UPI / test cards), then switch keys to Live.
+
+
+---------------------------------------------------------------------
+B. LEGAL / COMPLIANCE  (CA / lawyer)
+---------------------------------------------------------------------
+[ ] 1. Get the fee model reviewed: ₹2 platform fee per online contribution,
+       ₹0 on UPI/RuPay, card charges via Razorpay Customer Fee Bearer, money moved
+       to organisers via Razorpay Route (ChandaBox never holds funds).
+[ ] 2. GST on the platform fee: register for GST if required and decide whether
+       PLATFORM_FEE (now ₹2) is GST-inclusive.
+[ ] 3. Write a Privacy Policy and Terms of Service, host them on a public URL
+       (Google Play / App Store require a privacy policy; the app collects phone,
+       bank details, PAN, address, photos).
+
+
+---------------------------------------------------------------------
+C. SERVER (production, chanda.feelathomecare.net)
+---------------------------------------------------------------------
+[ ] 1. .env for production:
+         APP_ENV=production
+         APP_DEBUG=false
+         APP_URL=https://chanda.feelathomecare.net   (profile picture URLs are built
+                                                      from this; must be reachable by phones)
+[ ] 2. php artisan migrate --force
+[ ] 3. php artisan storage:link        (profile pictures are served from /storage)
+[ ] 4. Cron entry for the scheduler (retries Razorpay transfers every 10 min,
+       prunes expired login tokens):
+         * * * * * cd /path/to/chanda_backend && php artisan schedule:run >> /dev/null 2>&1
+[ ] 5. Queue worker running permanently (QUEUE_CONNECTION=database). Push
+       notifications are queued: WITHOUT a worker no push notification is sent.
+         php artisan queue:work --tries=3
+       Keep it alive with Supervisor (or the host's process manager) and run
+       `php artisan queue:restart` after every deploy.
+[ ] 6. HTTPS certificate on the domain (Razorpay webhooks and the app need https).
+[ ] 7. After changing .env on the server: php artisan config:cache
+       (or config:clear if you don't cache config).
+[ ] 8. Upload limit: PHP upload_max_filesize / post_max_size >= 6M
+       (profile pictures can be up to 5 MB).
+[ ] 9. Database backups (contributions and payments are the financial record).
+
+
+---------------------------------------------------------------------
+D. FIREBASE  (console.firebase.google.com, project "chanda-box")
+---------------------------------------------------------------------
+[ ] 1. Service-account key for push (Project settings > Service accounts >
+       Generate new private key). Put it on the server at
+         storage/app/private/firebase-credentials.json
+       (or set FIREBASE_CREDENTIALS to its path). Never commit it.
+       PUSH_DRIVER=fcm, FIREBASE_PROJECT_ID=chanda-box.
+[ ] 2. Re-register the Android app in Firebase with the FINAL package name
+       (see E.1) and replace chanda_app/android/app/google-services.json.
+       Same for iOS (GoogleService-Info.plist) when you release on iOS.
+[ ] 3. iOS only: upload the APNs key (Apple Developer > Keys) in
+       Firebase > Project settings > Cloud Messaging.
+[ ] 4. (Optional) OTP by SMS: enable Firebase Phone Authentication, add the app's
+       SHA-1/SHA-256 fingerprints, then set OTP_DRIVER=firebase. Needs OTP screens
+       in the app (not built yet). Currently OTP_DRIVER=none.
+
+
+---------------------------------------------------------------------
+E. ANDROID APP RELEASE  (Google Play)
+---------------------------------------------------------------------
+[ ] 1. Change the package name from com.example.chanda_app to your own
+       (e.g. com.yourcompany.chandabox) in android/app/build.gradle(.kts)
+       (applicationId + namespace) — Play Store rejects com.example.*.
+       Then redo D.2.
+[ ] 2. Create a release keystore and configure release signing (the release
+       build currently uses the DEBUG key). Back up the keystore safely.
+[ ] 3. Build against production:
+         flutter build appbundle --release
+       (defaults: real API at https://chanda.feelathomecare.net/api/v1,
+        USE_MOCK_API=false; override with --dart-define=API_BASE_URL=... if needed)
+[ ] 4. Google Play Console: developer account, store listing, privacy policy URL
+       (B.3), Data safety form (phone, name, email, bank details, PAN, address,
+       photos, payment info), content rating.
+[ ] 5. iOS later: Apple Developer account, bundle id, signing, App Store listing.
+
+
+---------------------------------------------------------------------
+F. FIRST RUN CHECKS (after A–E)
+---------------------------------------------------------------------
+[ ] Register two users, create an event, invite, accept (push arrives?).
+[ ] Organiser adds payout account -> status becomes Active (Account > Payout account).
+[ ] Member pays ₹1 by UPI QR and by Checkout -> contribution shows, organiser
+    gets the money in their bank after Razorpay settlement, ₹2 stays in your account.
+[ ] Cash request -> organiser approves -> shows in Contributions and Transactions.
+[ ] Upload a profile picture -> visible on another phone.

@@ -19,6 +19,8 @@ class ContributionResource extends JsonResource
         return [
             'id' => $this->id,
             'user' => new UserSummaryResource($this->whenLoaded('user')),
+            // Set when someone else (the owner) paid for this member.
+            'paid_by' => $this->whenLoaded('payer', fn () => $this->payer ? new UserSummaryResource($this->payer) : null),
             'amount' => (float) $this->amount,
             'paid_at' => $this->paid_at->toIso8601ZuluString(),
             'method' => $this->method,

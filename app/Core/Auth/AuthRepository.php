@@ -97,6 +97,11 @@ class AuthRepository implements AuthInterface
         $user->tokens()->where('name', $token->name)->delete();
     }
 
+    public function revokeOtherSessions(User $user, PersonalAccessToken $token): void
+    {
+        $user->tokens()->where('name', '!=', $token->name)->delete();
+    }
+
     /**
      * Invitations sent to this phone before the account existed now belong to it.
      */

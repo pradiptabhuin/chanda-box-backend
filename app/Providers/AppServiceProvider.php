@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Core\Auth\AuthInterface;
 use App\Core\Auth\AuthRepository;
+use App\Core\CashRequests\CashRequestInterface;
+use App\Core\CashRequests\CashRequestRepository;
 use App\Core\Events\EventInterface;
 use App\Core\Events\EventRepository;
 use App\Core\Invitations\InvitationInterface;
@@ -16,18 +18,17 @@ use App\Core\Payments\PaymentGatewayInterface;
 use App\Core\Payments\PaymentInterface;
 use App\Core\Payments\PaymentRepository;
 use App\Core\Payments\RazorpayGateway;
+use App\Core\Payouts\PayoutAccountInterface;
+use App\Core\Payouts\PayoutAccountRepository;
 use App\Core\Push\FcmPushProvider;
 use App\Core\Push\LogPushProvider;
 use App\Core\Push\PushInterface;
 use App\Core\Sms\LogSmsProvider;
 use App\Core\Sms\SmsInterface;
-use App\Core\Wallet\WalletInterface;
-use App\Core\Wallet\WalletRepository;
+use App\Core\Transactions\TransactionInterface;
+use App\Core\Transactions\TransactionRepository;
 use App\Http\Requests\Auth\PhoneRequest;
-use App\Models\Contribution;
-use App\Models\Withdrawal;
 use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -43,8 +44,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(EventInterface::class, EventRepository::class);
         $this->app->bind(AuthInterface::class, AuthRepository::class);
         $this->app->bind(InvitationInterface::class, InvitationRepository::class);
-        $this->app->bind(WalletInterface::class, WalletRepository::class);
         $this->app->bind(PaymentInterface::class, PaymentRepository::class);
+        $this->app->bind(CashRequestInterface::class, CashRequestRepository::class);
+        $this->app->bind(PayoutAccountInterface::class, PayoutAccountRepository::class);
+        $this->app->bind(TransactionInterface::class, TransactionRepository::class);
         $this->app->singleton(PaymentGatewayInterface::class, fn () => RazorpayGateway::fromConfig());
 
         $this->app->bind(SmsInterface::class, fn () => match (config('services.sms.driver')) {
@@ -71,11 +74,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Relation::morphMap([
-            'contribution' => Contribution::class,
-            'withdrawal' => Withdrawal::class,
-        ]);
-
         RateLimiter::for('otp', function (Request $request) {
             $phone = PhoneRequest::normalizePhone($request->input('phone'));
 
@@ -94,5 +92,8 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(20)->by("auth-ip:{$request->ip()}"),
             ];
         });
+
+        // Guessing the current password from a stolen session.
+        RateLimiter::for('password', fn (Request $request) => Limit::perMinute(5)->by("password:{$request->user()?->id}"));
     }
 }

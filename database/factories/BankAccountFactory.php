@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\RouteStatus;
 use App\Models\BankAccount;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -24,13 +25,24 @@ class BankAccountFactory extends Factory
             'account_number' => fake()->numerify('############'),
             'ifsc' => fake()->randomElement(['HDFC', 'SBIN', 'ICIC', 'UTIB']).'0'.fake()->numerify('######'),
             'bank_name' => fake()->randomElement(['HDFC Bank', 'State Bank of India', 'ICICI Bank', 'Axis Bank']),
-            'upi_id' => null,
-            'is_primary' => false,
+            'email' => fake()->safeEmail(),
+            'street' => fake()->streetAddress(),
+            'city' => 'Kolkata',
+            'state' => 'West Bengal',
+            'postal_code' => fake()->numerify('700###'),
+            'route_status' => RouteStatus::NotLinked,
         ];
     }
 
-    public function primary(): static
+    /**
+     * Linked with Razorpay Route and able to receive online contributions.
+     */
+    public function active(): static
     {
-        return $this->state(fn (array $attributes) => ['is_primary' => true]);
+        return $this->state(fn (array $attributes) => [
+            'razorpay_account_id' => 'acc_'.fake()->unique()->bothify('??????????????'),
+            'razorpay_product_id' => 'acc_prd_'.fake()->unique()->bothify('????????????'),
+            'route_status' => RouteStatus::Active,
+        ]);
     }
 }

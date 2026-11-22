@@ -19,8 +19,10 @@ class EventMemberResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'id' => $this->id,
             'user_id' => $this->user_id,
             'name' => $this->user?->name ?? $this->phone,
+            'photo_url' => $this->user?->photo_url,
             'phone' => $this->phone,
             'status' => $this->status,
             'added_at' => ($this->added_at ?? $this->invited_at)?->toIso8601ZuluString(),

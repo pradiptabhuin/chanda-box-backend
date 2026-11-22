@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TokenAbility;
+use App\Models\Contribution;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\UserSeeder;
@@ -21,28 +22,31 @@ class DatabaseSeederTest extends TestCase
 
         foreach ([
             'users', 'device_tokens', 'bank_accounts', 'events', 'event_schedules', 'payments',
-            'contributions', 'withdrawals', 'notifications', 'webhook_events',
+            'contributions', 'notifications', 'webhook_events',
         ] as $table) {
             $this->assertSame(10, DB::table($table)->count(), "{$table} should have 10 rows");
         }
 
-        // Derived rows: an owner row per event + 10 memberships, and a ledger entry per contribution and withdrawal.
+        // Derived rows: an owner row per event + 10 memberships.
         $this->assertSame(20, DB::table('event_members')->count());
-        $this->assertSame(20, DB::table('wallet_transactions')->count());
+        $this->assertSame(1, DB::table('bank_accounts')->where('route_status', 'active')->count());
     }
 
     public function test_the_demo_user_gets_a_consistent_home_screen(): void
     {
         $this->seed(DatabaseSeeder::class);
-        Sanctum::actingAs(User::where('phone', UserSeeder::DEMO_PHONE)->firstOrFail(), [TokenAbility::AccessApi->value]);
+        $demo = User::where('phone', UserSeeder::DEMO_PHONE)->firstOrFail();
+        Sanctum::actingAs($demo, [TokenAbility::AccessApi->value]);
+        $received = (float) Contribution::whereIn('event_id', $demo->ownedEvents()->select('id'))->where('user_id', '!=', $demo->id)->sum('amount');
+        $sent = (float) $demo->contributions()->sum('amount');
 
         $this->getJson('/api/v1/home')
             ->assertOk()
             ->assertJsonCount(3, 'events.owned')
             ->assertJsonCount(2, 'events.joined')
             ->assertJsonCount(2, 'invitations')
-            // Credits 10,506 + 501 − processed 3,850 − pending 1,500.
-            ->assertJsonPath('wallet.balance', 5657)
+            ->assertJsonPath('transactions.received', fn ($value) => (float) $value === $received)
+            ->assertJsonPath('transactions.sent', fn ($value) => (float) $value === $sent)
             // Soonest first: the past Para Picnic, then the Durga Puja.
             ->assertJsonPath('events.owned.0.name', 'Para Picnic 2026')
             ->assertJsonPath('events.owned.1.name', 'Sarbojanin Durga Puja')
@@ -53,15 +57,5 @@ class DatabaseSeederTest extends TestCase
         $inbox = collect($this->getJson('/api/v1/notifications')->assertOk()->json('data'));
         $this->assertSame(['invitation', 'invitation', 'payment_received'], $inbox->whereNull('read_at')->pluck('type')->sort()->values()->all());
         $this->assertSame(4, $inbox->whereNotNull('read_at')->where('type', 'invitation_accepted')->count());
-    }
-
-    public function test_no_wallet_goes_negative(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-
-        User::each(function (User $user) {
-            Sanctum::actingAs($user, [TokenAbility::AccessApi->value]);
-            $this->assertGreaterThanOrEqual(0, $this->getJson('/api/v1/wallet')->json('balance'), "{$user->name}'s balance");
-        });
     }
 }

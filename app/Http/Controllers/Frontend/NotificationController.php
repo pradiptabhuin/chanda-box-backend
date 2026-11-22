@@ -22,6 +22,16 @@ class NotificationController extends Controller
         );
     }
 
+    /**
+     * POST /notifications/read-all: one query instead of one request per notification.
+     */
+    public function markAllRead(Request $request): JsonResponse
+    {
+        $request->user()->unreadNotifications()->update(['read_at' => now()]);
+
+        return response()->json(['message' => 'All marked as read.']);
+    }
+
     public function markRead(Request $request, string $notification): JsonResponse
     {
         $request->user()->notifications()->findOrFail($notification)->markAsRead();

@@ -21,6 +21,7 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'phone' => $this->phone,
             'email' => $this->email,
+            'photo_url' => $this->photo_url,
             'phone_verified' => $this->phone_verified_at !== null,
             'created_at' => $this->created_at?->toIso8601ZuluString(),
         ];

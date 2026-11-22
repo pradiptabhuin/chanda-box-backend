@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Frontend;
 
+use App\Core\Payments\FeeCalculator;
 use App\Core\Payments\PaymentInterface;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\CreatePaymentOrderRequest;
@@ -10,17 +11,31 @@ use App\Http\Resources\PaymentOrderResource;
 use App\Models\Event;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class PaymentController extends Controller
 {
     public function __construct(private PaymentInterface $paymentInterface) {}
 
     /**
+     * GET /events/{event}/payments/quote?amount=200: what the payer pays on top of the contribution.
+     */
+    public function quote(Request $request, Event $event, FeeCalculator $fees): JsonResponse
+    {
+        Gate::authorize('contribute', $event);
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1', 'max:'.CreatePaymentOrderRequest::MAX_AMOUNT, 'decimal:0,2'],
+        ]);
+
+        return response()->json($fees->quote((float) $validated['amount']));
+    }
+
+    /**
      * POST /events/{event}/payments/order
      */
     public function store(CreatePaymentOrderRequest $request, Event $event): JsonResponse
     {
-        $payment = $this->paymentInterface->createOrder($request->user(), $event, $request->amount());
+        $payment = $this->paymentInterface->createOrder($request->user(), $event, $request->amount(), $request->member());
 
         return (new PaymentOrderResource($payment))->response()->setStatusCode(201);
     }

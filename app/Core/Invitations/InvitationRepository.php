@@ -85,7 +85,7 @@ class InvitationRepository implements InvitationInterface
         return $user->pendingInvitations()
             ->whereHas('event')
             ->with([
-                'inviter:id,first_name,middle_name,last_name',
+                'inviter:'.User::SUMMARY_COLUMNS,
                 'event' => fn ($q) => $q->withCount('joinedMembers as member_count'),
             ])
             ->latest('invited_at')
@@ -123,7 +123,7 @@ class InvitationRepository implements InvitationInterface
         EventMember::whereKey($ids)->update(['user_id' => $user->id]);
 
         EventMember::whereKey($ids)
-            ->with(['event', 'inviter:id,first_name,middle_name,last_name'])
+            ->with(['event', 'inviter:'.User::SUMMARY_COLUMNS])
             ->get()
             ->each(fn (EventMember $invitation) => $user->notify(new InvitationReceived($invitation)));
     }

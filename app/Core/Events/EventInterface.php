@@ -3,11 +3,13 @@
 namespace App\Core\Events;
 
 use App\Enums\EventScope;
+use App\Enums\EventStatus;
 use App\Models\Contribution;
 use App\Models\Event;
 use App\Models\EventMember;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Validation\ValidationException;
 
 /**
  * @phpstan-type EventData array{name: string, description?: string|null, location?: string|null, proposed_amount: numeric-string|float|int, target_amount?: numeric-string|float|int|null, start_date: string, end_date?: string|null, curriculum?: list<array{title: string, date: string, description?: string|null}>}
@@ -42,6 +44,22 @@ interface EventInterface
      * @param  EventData  $data
      */
     public function update(Event $event, array $data): Event;
+
+    /**
+     * Close or reopen collection, or cancel the event. Cancelling is only allowed while nothing has
+     * been collected, and a cancelled event is final.
+     *
+     * @throws ValidationException
+     */
+    public function changeStatus(Event $event, EventStatus $status): Event;
+
+    /**
+     * Removes a joined member (their past contributions stay) or cancels a pending invitation.
+     * 404 if the row isn't a live member of this event.
+     *
+     * @throws ValidationException when it's the owner's row
+     */
+    public function removeMember(Event $event, int $memberId): void;
 
     /**
      * Owner first, then joined members and pending invitees (declined/removed are left out),

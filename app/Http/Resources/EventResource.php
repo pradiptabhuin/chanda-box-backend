@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * An event as seen by the requesting user. The totals come from EventRepository's
- * subqueries (total_collected, member_count, contributor_count, my_contribution).
+ * subqueries (total_collected, member_count, contributor_count, my_contribution, owner_route_active).
  * `my_status` / `invitation_id` are only on the detail response (EventRepository::findForUser).
  *
  * @mixin Event
@@ -43,6 +43,7 @@ class EventResource extends JsonResource
             'member_count' => (int) ($this->member_count ?? 0),
             'contributor_count' => (int) ($this->contributor_count ?? 0),
             'my_contribution' => (float) ($this->my_contribution ?? 0),
+            'accepts_online' => config('payments.route_enabled') && (bool) $this->owner_route_active,
             'my_role' => $this->owner_id === $request->user()?->id ? MemberRole::Owner : MemberRole::Member,
             'my_status' => $this->whenHas('my_status'),
             'invitation_id' => $this->when(

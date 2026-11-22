@@ -11,8 +11,10 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
@@ -22,6 +24,16 @@ use Laravel\Sanctum\HasApiTokens;
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    /**
+     * Columns to eager-load when only a user's name and photo are shown (owner, payer, inviter...).
+     */
+    public const SUMMARY_COLUMNS = 'id,first_name,middle_name,last_name,profile_pic';
+
+    /**
+     * Profile pictures live on the public disk (`php artisan storage:link`).
+     */
+    public const PHOTO_DISK = 'public';
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -47,6 +59,20 @@ class User extends Authenticatable
      *
      * @return Attribute<string, string>
      */
+    /**
+     * The profile picture's public URL, or null.
+     *
+     * @return Attribute<string|null, never>
+     */
+    protected function photoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (mixed $value, array $attributes): ?string => filled($attributes['profile_pic'] ?? null)
+                ? Storage::disk(self::PHOTO_DISK)->url($attributes['profile_pic'])
+                : null,
+        );
+    }
+
     protected function name(): Attribute
     {
         return Attribute::make(
@@ -131,29 +157,14 @@ class User extends Authenticatable
     }
 
     /**
-     * @return HasMany<BankAccount, $this>
-     */
-    public function bankAccounts(): HasMany
-    {
-        return $this->hasMany(BankAccount::class);
-    }
-
-    /**
-     * @return HasMany<Withdrawal, $this>
-     */
-    public function withdrawals(): HasMany
-    {
-        return $this->hasMany(Withdrawal::class);
-    }
-
-    /**
-     * The user's wallet ledger.
+     * The bank Razorpay Route pays this user's events' online contributions into (one per user;
+     * replaced ones are soft-deleted).
      *
-     * @return HasMany<WalletTransaction, $this>
+     * @return HasOne<BankAccount, $this>
      */
-    public function walletTransactions(): HasMany
+    public function payoutAccount(): HasOne
     {
-        return $this->hasMany(WalletTransaction::class);
+        return $this->hasOne(BankAccount::class)->latestOfMany();
     }
 
     /**
