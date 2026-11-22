@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\EventStatus;
 use App\Enums\MemberStatus;
 use App\Models\Event;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Models\User;
 /**
  * Owner: everything. Joined member: view the event, its members and contributions.
  * Pending invitee: view the event only (to decide whether to join).
+ * Contributions are only taken while the event is active.
  */
 class EventPolicy
 {
@@ -24,6 +26,11 @@ class EventPolicy
     public function viewActivity(User $user, Event $event): bool
     {
         return $this->isOwner($user, $event) || $this->hasMembership($user, $event, [MemberStatus::Joined]);
+    }
+
+    public function contribute(User $user, Event $event): bool
+    {
+        return $event->status === EventStatus::Active && $this->viewActivity($user, $event);
     }
 
     public function update(User $user, Event $event): bool

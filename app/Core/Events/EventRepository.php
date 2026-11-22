@@ -31,7 +31,9 @@ class EventRepository implements EventInterface
 
     public function findForUser(User $user, int $eventId): Event
     {
-        return $this->withUserTotals(Event::query(), $user)->with('schedules')->findOrFail($eventId);
+        return $this->withMembershipOf($this->withUserTotals(Event::query(), $user), $user)
+            ->with('schedules')
+            ->findOrFail($eventId);
     }
 
     public function create(User $owner, array $data): Event
@@ -125,6 +127,28 @@ class EventRepository implements EventInterface
             ->withCount('joinedMembers as member_count')
             ->withCount(['contributions as contributor_count' => fn (Builder $q) => $q->select(DB::raw('count(distinct user_id)'))])
             ->withSum(['contributions as my_contribution' => fn (Builder $q) => $q->where('user_id', $user->id)], 'amount');
+    }
+
+    /**
+     * The viewer's own member row as `my_member_id` / `my_status`, so the app can tell a joined
+     * member from a pending invitee (and accept or decline right from the event).
+     * Must come after withUserTotals(), which selects `events.*`.
+     *
+     * @param  Builder<Event>  $query
+     * @return Builder<Event>
+     */
+    private function withMembershipOf(Builder $query, User $user): Builder
+    {
+        $membership = fn (string $column) => EventMember::query()
+            ->select($column)
+            ->whereColumn('event_id', 'events.id')
+            ->where('user_id', $user->id)
+            ->limit(1);
+
+        return $query->addSelect([
+            'my_member_id' => $membership('id'),
+            'my_status' => $membership('status'),
+        ]);
     }
 
     /**

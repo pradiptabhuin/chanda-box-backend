@@ -48,6 +48,16 @@ return [
         'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/private/firebase-credentials.json')),
     ],
 
+    'razorpay' => [
+        'key_id' => env('RAZORPAY_KEY_ID'),
+        'key_secret' => env('RAZORPAY_KEY_SECRET'),
+        // Dashboard → Settings → Webhooks; used to verify X-Razorpay-Signature.
+        'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
+        'base_url' => env('RAZORPAY_BASE_URL', 'https://api.razorpay.com/v1'),
+        // How long a payment QR stays open (Razorpay needs at least 2 minutes).
+        'qr_ttl_minutes' => (int) env('RAZORPAY_QR_TTL', 15),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

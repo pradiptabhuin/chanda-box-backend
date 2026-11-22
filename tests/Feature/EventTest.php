@@ -173,11 +173,18 @@ class EventTest extends TestCase
         $this->getJson("/api/v1/events/{$event->id}")->assertForbidden();
 
         $invite = EventMember::factory()->invited()->for($event)->create(['user_id' => $this->me->id, 'phone' => $this->me->phone]);
-        $this->getJson("/api/v1/events/{$event->id}")->assertOk()->assertJsonPath('data.my_role', 'member');
+        $this->getJson("/api/v1/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonPath('data.my_role', 'member')
+            ->assertJsonPath('data.my_status', 'invited')
+            ->assertJsonPath('data.invitation_id', $invite->id);
         $this->getJson("/api/v1/events/{$event->id}/members")->assertForbidden();
         $this->getJson("/api/v1/events/{$event->id}/contributions")->assertForbidden();
 
         $invite->update(['status' => MemberStatus::Joined]);
+        $this->getJson("/api/v1/events/{$event->id}")
+            ->assertJsonPath('data.my_status', 'joined')
+            ->assertJsonMissingPath('data.invitation_id');
         $this->getJson("/api/v1/events/{$event->id}/members")->assertOk();
         $this->getJson("/api/v1/events/{$event->id}/contributions")->assertOk();
 

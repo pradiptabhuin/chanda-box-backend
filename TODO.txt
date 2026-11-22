@@ -1,6 +1,7 @@
 1. Login Register Done
 2. Home Page Done.
 3. New event create Done
+4. Invition process with notification
 
 TODO--
-Invition process and my event page
+Now make the payment process.

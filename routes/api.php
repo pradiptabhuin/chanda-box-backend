@@ -7,6 +7,8 @@ use App\Http\Controllers\Frontend\EventController;
 use App\Http\Controllers\Frontend\HomeController;
 use App\Http\Controllers\Frontend\InvitationController;
 use App\Http\Controllers\Frontend\NotificationController;
+use App\Http\Controllers\Frontend\PaymentController;
+use App\Http\Controllers\Frontend\RazorpayWebhookController;
 use App\Http\Controllers\Frontend\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +31,8 @@ Route::prefix('v1')->group(function () {
         Route::post('refresh', 'refresh')
             ->middleware(['auth:sanctum', 'abilities:'.TokenAbility::IssueAccessToken->value]);
     });
+
+    Route::post('webhooks/razorpay', RazorpayWebhookController::class);
 
     Route::middleware(['auth:sanctum', 'abilities:'.TokenAbility::AccessApi->value])->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -56,6 +60,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/', 'index');
             Route::post('{invitation}/accept', 'accept')->whereNumber('invitation');
             Route::post('{invitation}/decline', 'decline')->whereNumber('invitation');
+        });
+
+        Route::post('events/{event}/payments/order', [PaymentController::class, 'store'])->whereNumber('event');
+
+        Route::controller(PaymentController::class)->prefix('payments')->group(function () {
+            Route::post('verify', 'verify');
+            Route::get('{orderId}/status', 'status');
         });
 
         Route::get('wallet', [WalletController::class, 'show']);

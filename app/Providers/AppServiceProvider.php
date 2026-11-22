@@ -12,6 +12,10 @@ use App\Core\Otp\FirebaseOtpProvider;
 use App\Core\Otp\NullOtpProvider;
 use App\Core\Otp\OtpInterface;
 use App\Core\Otp\SmsOtpProvider;
+use App\Core\Payments\PaymentGatewayInterface;
+use App\Core\Payments\PaymentInterface;
+use App\Core\Payments\PaymentRepository;
+use App\Core\Payments\RazorpayGateway;
 use App\Core\Push\FcmPushProvider;
 use App\Core\Push\LogPushProvider;
 use App\Core\Push\PushInterface;
@@ -40,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AuthInterface::class, AuthRepository::class);
         $this->app->bind(InvitationInterface::class, InvitationRepository::class);
         $this->app->bind(WalletInterface::class, WalletRepository::class);
+        $this->app->bind(PaymentInterface::class, PaymentRepository::class);
+        $this->app->singleton(PaymentGatewayInterface::class, fn () => RazorpayGateway::fromConfig());
 
         $this->app->bind(SmsInterface::class, fn () => match (config('services.sms.driver')) {
             'log' => new LogSmsProvider,
