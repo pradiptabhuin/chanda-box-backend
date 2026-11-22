@@ -10,17 +10,13 @@ return new class extends Migration
      * A user's single payout account: their bank, registered with Razorpay as a Route
      * linked account so online contributions to their events are paid straight into it.
      * The RazorpayX payout columns (withdrawals) are no longer needed.
+     *
+     * On MySQL the user_id foreign key relies on a composite index that starts with
+     * user_id, so the new (user_id, route_status) index is added before the old
+     * (user_id, is_primary) index is dropped, and the reverse in down().
      */
     public function up(): void
     {
-        Schema::table('bank_accounts', function (Blueprint $table) {
-            $table->dropIndex(['user_id', 'is_primary']);
-        });
-
-        Schema::table('bank_accounts', function (Blueprint $table) {
-            $table->dropColumn(['upi_id', 'is_primary', 'razorpay_contact_id', 'razorpay_fund_account_id']);
-        });
-
         Schema::table('bank_accounts', function (Blueprint $table) {
             // KYC details Razorpay needs to open the linked account.
             $table->string('email', 250)->nullable()->after('bank_name');
@@ -36,10 +32,27 @@ return new class extends Migration
 
             $table->index(['user_id', 'route_status']);
         });
+
+        Schema::table('bank_accounts', function (Blueprint $table) {
+            $table->dropIndex(['user_id', 'is_primary']);
+        });
+
+        Schema::table('bank_accounts', function (Blueprint $table) {
+            $table->dropColumn(['upi_id', 'is_primary', 'razorpay_contact_id', 'razorpay_fund_account_id']);
+        });
     }
 
     public function down(): void
     {
+        Schema::table('bank_accounts', function (Blueprint $table) {
+            $table->string('upi_id', 100)->nullable();
+            $table->boolean('is_primary')->default(false);
+            $table->string('razorpay_contact_id', 50)->nullable();
+            $table->string('razorpay_fund_account_id', 50)->nullable();
+
+            $table->index(['user_id', 'is_primary']);
+        });
+
         Schema::table('bank_accounts', function (Blueprint $table) {
             $table->dropIndex(['user_id', 'route_status']);
             $table->dropUnique(['razorpay_account_id']);
@@ -50,15 +63,6 @@ return new class extends Migration
                 'email', 'pan', 'street', 'city', 'state', 'postal_code',
                 'razorpay_account_id', 'razorpay_product_id', 'route_status', 'route_status_reason',
             ]);
-        });
-
-        Schema::table('bank_accounts', function (Blueprint $table) {
-            $table->string('upi_id', 100)->nullable();
-            $table->boolean('is_primary')->default(false);
-            $table->string('razorpay_contact_id', 50)->nullable();
-            $table->string('razorpay_fund_account_id', 50)->nullable();
-
-            $table->index(['user_id', 'is_primary']);
         });
     }
 };
