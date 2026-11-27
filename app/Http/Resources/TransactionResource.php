@@ -48,7 +48,7 @@ class TransactionResource extends JsonResource
      */
     private function payoutStatus(bool $sent): ?string
     {
-        if ($sent || ! $this->method->isOnline() || $this->payment?->transfer_status === null) {
+        if ($sent || ! $this->method->isViaRazorpay() || $this->payment?->transfer_status === null) {
             return null;
         }
 

@@ -31,21 +31,31 @@ class CashRequestRepository implements CashRequestInterface
             ->get();
     }
 
-    public function create(User $requester, Event $event, float $amount, ?User $member = null, ?string $note = null): CashRequest
-    {
+    public function create(
+        User $requester,
+        Event $event,
+        float $amount,
+        ?User $member = null,
+        ?string $note = null,
+        PaymentMethod $method = PaymentMethod::Cash,
+        ?string $utr = null,
+    ): CashRequest {
         $member ??= $requester;
+        $details = ['amount' => $amount, 'method' => $method, 'utr' => $utr, 'note' => $note];
 
-        if ($event->owner_id === $requester->id) {
-            return DB::transaction(function () use ($requester, $event, $amount, $member, $note) {
-                $cashRequest = $this->newRequest($requester, $event, $amount, $member, $note, CashRequestStatus::Approved);
+        return DB::transaction(function () use ($requester, $event, $member, $details) {
+            if ($details['utr'] !== null) {
+                $this->ensureUtrIsUnused($event, $details['utr']);
+            }
+
+            if ($event->owner_id === $requester->id) {
+                $cashRequest = $this->newRequest($requester, $event, $member, $details, CashRequestStatus::Approved);
                 $cashRequest->update(['reviewed_by' => $requester->id, 'reviewed_at' => now()]);
                 $this->recordContribution($cashRequest, $event, payer: $requester);
 
                 return $cashRequest;
-            });
-        }
+            }
 
-        return DB::transaction(function () use ($requester, $event, $amount, $member, $note) {
             $alreadyPending = $event->cashRequests()
                 ->where('user_id', $member->id)
                 ->where('status', CashRequestStatus::Pending)
@@ -54,11 +64,11 @@ class CashRequestRepository implements CashRequestInterface
 
             if ($alreadyPending) {
                 throw ValidationException::withMessages([
-                    'amount' => 'You already have a cash payment waiting for the organiser to confirm.',
+                    'amount' => 'You already have a payment waiting for the organiser to confirm.',
                 ]);
             }
 
-            $cashRequest = $this->newRequest($requester, $event, $amount, $member, $note, CashRequestStatus::Pending);
+            $cashRequest = $this->newRequest($requester, $event, $member, $details, CashRequestStatus::Pending);
 
             DB::afterCommit(fn () => $event->owner->notify(new CashRequestReceived($cashRequest)));
 
@@ -101,20 +111,40 @@ class CashRequestRepository implements CashRequestInterface
         ]));
     }
 
+    /**
+     * A UTR is one UPI transfer: it can't be claimed twice in the same event (a rejected or
+     * cancelled claim frees it again).
+     *
+     * @throws ValidationException
+     */
+    private function ensureUtrIsUnused(Event $event, string $utr): void
+    {
+        $taken = $event->cashRequests()
+            ->where('utr', $utr)
+            ->whereIn('status', [CashRequestStatus::Pending, CashRequestStatus::Approved])
+            ->lockForUpdate()
+            ->exists();
+
+        if ($taken) {
+            throw ValidationException::withMessages(['utr' => 'This UPI reference has already been used for this event.']);
+        }
+    }
+
+    /**
+     * @param  array{amount: float, method: PaymentMethod, utr: string|null, note: string|null}  $details
+     */
     private function newRequest(
         User $requester,
         Event $event,
-        float $amount,
         User $member,
-        ?string $note,
+        array $details,
         CashRequestStatus $status,
     ): CashRequest {
         /** @var CashRequest $cashRequest */
         $cashRequest = $event->cashRequests()->create([
+            ...$details,
             'user_id' => $member->id,
             'requested_by' => $requester->id,
-            'amount' => $amount,
-            'note' => $note,
             'status' => $status,
         ]);
 
@@ -135,7 +165,7 @@ class CashRequestRepository implements CashRequestInterface
             $locked = CashRequest::query()->whereKey($cashRequest->id)->lockForUpdate()->firstOrFail();
 
             if (! $locked->isPending()) {
-                throw ValidationException::withMessages(['status' => 'This cash payment was already handled.']);
+                throw ValidationException::withMessages(['status' => 'This payment was already handled.']);
             }
 
             $change($locked);
@@ -151,8 +181,8 @@ class CashRequestRepository implements CashRequestInterface
             member: $cashRequest->user,
             payer: $payer,
             amount: $cashRequest->amount,
-            method: PaymentMethod::Cash,
-            reference: "CASH-{$cashRequest->id}",
+            method: $cashRequest->method,
+            reference: $cashRequest->utr ?? strtoupper($cashRequest->method->value)."-{$cashRequest->id}",
             source: $cashRequest,
             note: $cashRequest->note,
         );

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\CashRequestStatus;
+use App\Enums\PaymentMethod;
 use App\Models\CashRequest;
 use App\Models\Event;
 use App\Models\User;
@@ -25,9 +26,22 @@ class CashRequestFactory extends Factory
             'user_id' => User::factory(),
             'requested_by' => fn (array $attributes) => $attributes['user_id'],
             'amount' => fake()->randomElement([501, 701, 1001, 2001]),
+            'method' => PaymentMethod::Cash,
+            'utr' => null,
             'note' => null,
             'status' => CashRequestStatus::Pending,
         ];
+    }
+
+    /**
+     * Paid to the organiser's UPI ID, with the UTR from the member's UPI app.
+     */
+    public function upi(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'method' => PaymentMethod::Upi,
+            'utr' => fake()->unique()->numerify('############'),
+        ]);
     }
 
     public function approved(): static

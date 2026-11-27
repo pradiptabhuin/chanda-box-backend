@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 #[Fillable([
     'owner_id', 'name', 'description', 'location', 'proposed_amount',
-    'target_amount', 'start_date', 'end_date', 'status',
+    'target_amount', 'upi_id', 'upi_payee_name', 'start_date', 'end_date', 'status',
 ])]
 class Event extends Model
 {
@@ -36,6 +36,22 @@ class Event extends Model
             'end_date' => 'datetime',
             'status' => EventStatus::class,
         ];
+    }
+
+    /**
+     * Members can pay the organiser directly on UPI only when the event has a UPI ID.
+     */
+    public function acceptsUpi(): bool
+    {
+        return $this->upi_id !== null;
+    }
+
+    /**
+     * The name UPI apps show the payer, so they can check who they're paying.
+     */
+    public function upiPayeeName(): string
+    {
+        return $this->upi_payee_name ?? $this->owner->name;
     }
 
     /**

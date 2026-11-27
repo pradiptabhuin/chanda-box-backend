@@ -22,6 +22,8 @@ class CashRequestResource extends JsonResource
             'member' => new UserSummaryResource($this->whenLoaded('user')),
             'requested_by' => new UserSummaryResource($this->whenLoaded('requester')),
             'amount' => (float) $this->amount,
+            'method' => $this->method,
+            'utr' => $this->utr,
             'note' => $this->note,
             'status' => $this->status,
             'rejection_reason' => $this->rejection_reason,

@@ -2,6 +2,7 @@
 
 namespace App\Core\CashRequests;
 
+use App\Enums\PaymentMethod;
 use App\Models\CashRequest;
 use App\Models\Event;
 use App\Models\User;
@@ -18,12 +19,20 @@ interface CashRequestInterface
     public function pendingFor(User $viewer, Event $event): Collection;
 
     /**
-     * A member's cash payment waits for the owner's approval (and notifies them). Cash the owner
-     * records, for themselves or on `$member`'s behalf, is approved and counted straight away.
+     * A member's cash or direct-UPI payment waits for the owner's approval (and notifies them).
+     * What the owner records, for themselves or on `$member`'s behalf, is approved and counted straight away.
      *
-     * @throws ValidationException when the member already has a request pending
+     * @throws ValidationException when the member already has a request pending, or the UTR was already used
      */
-    public function create(User $requester, Event $event, float $amount, ?User $member = null, ?string $note = null): CashRequest;
+    public function create(
+        User $requester,
+        Event $event,
+        float $amount,
+        ?User $member = null,
+        ?string $note = null,
+        PaymentMethod $method = PaymentMethod::Cash,
+        ?string $utr = null,
+    ): CashRequest;
 
     /**
      * @throws ValidationException when the request was already handled

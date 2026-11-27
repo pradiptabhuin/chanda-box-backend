@@ -53,14 +53,14 @@ class ContributionRecorder
     }
 
     /**
-     * Owner: told about online money someone else paid (cash they confirm themselves).
+     * Owner: told about Razorpay money someone else paid (cash and direct UPI they confirm themselves).
      * Member: told when someone else paid for them.
      */
     private function notify(Contribution $contribution, User $payer): void
     {
         $owner = $contribution->event->owner;
 
-        if ($contribution->method->isOnline() && ! $payer->is($owner)) {
+        if ($contribution->method->isViaRazorpay() && ! $payer->is($owner)) {
             $owner->notify(new PaymentReceived($contribution));
         }
 

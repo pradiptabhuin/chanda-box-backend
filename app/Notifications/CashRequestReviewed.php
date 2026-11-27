@@ -6,7 +6,7 @@ use App\Enums\CashRequestStatus;
 use App\Models\CashRequest;
 
 /**
- * Sent to the member when the owner approves or rejects their cash payment.
+ * Sent to the member when the owner approves or rejects their cash or UPI payment.
  */
 class CashRequestReviewed extends AppNotification
 {
@@ -19,7 +19,9 @@ class CashRequestReviewed extends AppNotification
 
     public function title(): string
     {
-        return $this->isApproved() ? 'Cash payment confirmed' : 'Cash payment not confirmed';
+        $kind = ucfirst($this->kind());
+
+        return $this->isApproved() ? "{$kind} payment confirmed" : "{$kind} payment not confirmed";
     }
 
     public function body(): string
@@ -28,10 +30,10 @@ class CashRequestReviewed extends AppNotification
         $event = $this->cashRequest->event->name;
 
         if ($this->isApproved()) {
-            return "Your cash payment of ₹{$amount} for {$event} was confirmed.";
+            return "Your {$this->kind()} payment of ₹{$amount} for {$event} was confirmed.";
         }
 
-        return "Your cash payment of ₹{$amount} for {$event} was not confirmed"
+        return "Your {$this->kind()} payment of ₹{$amount} for {$event} was not confirmed"
             .($this->cashRequest->rejection_reason ? ": {$this->cashRequest->rejection_reason}" : '.');
     }
 
@@ -41,7 +43,16 @@ class CashRequestReviewed extends AppNotification
             'event_id' => $this->cashRequest->event_id,
             'cash_request_id' => $this->cashRequest->id,
             'status' => $this->cashRequest->status->value,
+            'method' => $this->cashRequest->method->value,
         ];
+    }
+
+    /**
+     * "cash" or "UPI".
+     */
+    private function kind(): string
+    {
+        return $this->cashRequest->method->label();
     }
 
     private function isApproved(): bool

@@ -29,7 +29,7 @@ class CashRequestController extends Controller
     }
 
     /**
-     * POST /events/{event}/cash-requests: `approved` right away when the owner records it, else `pending`.
+     * POST /events/{event}/cash-requests: cash or direct UPI; `approved` right away when the owner records it, else `pending`.
      */
     public function store(StoreCashRequestRequest $request, Event $event): JsonResponse
     {
@@ -39,6 +39,8 @@ class CashRequestController extends Controller
             $request->amount(),
             $request->member(),
             $request->note(),
+            $request->paymentMethod(),
+            $request->utr(),
         );
 
         return (new CashRequestResource($cashRequest))->response()->setStatusCode(201);

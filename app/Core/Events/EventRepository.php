@@ -19,7 +19,10 @@ use Illuminate\Validation\ValidationException;
 
 class EventRepository implements EventInterface
 {
-    private const EVENT_FIELDS = ['name', 'description', 'location', 'proposed_amount', 'target_amount', 'start_date', 'end_date'];
+    private const EVENT_FIELDS = [
+        'name', 'description', 'location', 'proposed_amount', 'target_amount',
+        'upi_id', 'upi_payee_name', 'start_date', 'end_date',
+    ];
 
     public function forUser(User $user, ?EventScope $scope = null): Collection
     {

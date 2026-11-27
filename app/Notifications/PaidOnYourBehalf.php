@@ -24,7 +24,8 @@ class PaidOnYourBehalf extends AppNotification
     public function body(): string
     {
         $amount = number_format((float) $this->contribution->amount);
-        $how = $this->contribution->method->isOnline() ? 'paid' : 'recorded cash of';
+        $method = $this->contribution->method;
+        $how = $method->isViaRazorpay() ? 'paid' : "recorded a {$method->label()} payment of";
 
         return "{$this->contribution->payer->name} {$how} ₹{$amount} for you in {$this->contribution->event->name}";
     }

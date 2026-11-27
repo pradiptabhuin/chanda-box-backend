@@ -44,6 +44,13 @@ class EventResource extends JsonResource
             'contributor_count' => (int) ($this->contributor_count ?? 0),
             'my_contribution' => (float) ($this->my_contribution ?? 0),
             'accepts_online' => config('payments.route_enabled') && (bool) $this->owner_route_active,
+            'accepts_upi' => $this->acceptsUpi(),
+            // Direct UPI to the organiser: the app opens `uri` with `&am=<amount>` appended.
+            'upi' => $this->acceptsUpi() ? [
+                'upi_id' => $this->upi_id,
+                'payee_name' => $this->upiPayeeName(),
+                'uri' => $this->upiUri(),
+            ] : null,
             'my_role' => $this->owner_id === $request->user()?->id ? MemberRole::Owner : MemberRole::Member,
             'my_status' => $this->whenHas('my_status'),
             'invitation_id' => $this->when(
@@ -52,5 +59,18 @@ class EventResource extends JsonResource
             ),
             'created_at' => $this->created_at?->toIso8601ZuluString(),
         ];
+    }
+
+    /**
+     * A UPI deep link without the amount, e.g. `upi://pay?pa=x@okaxis&pn=Puja%20Committee&cu=INR&tn=...`.
+     */
+    private function upiUri(): string
+    {
+        return 'upi://pay?'.http_build_query([
+            'pa' => $this->upi_id,
+            'pn' => $this->upiPayeeName(),
+            'cu' => 'INR',
+            'tn' => str("Chanda {$this->name}")->limit(50, '')->toString(),
+        ], '', '&', PHP_QUERY_RFC3986);
     }
 }

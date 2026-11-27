@@ -13,6 +13,8 @@ class SaveEventRequest extends FormRequest
 {
     private const MAX_AMOUNT = 9_999_999_999.99;
 
+    private const UPI_ID_PATTERN = '/^[a-z0-9._-]{2,256}@[a-z][a-z0-9.-]{1,64}$/';
+
     /**
      * Anyone signed in can create; only the owner can update (checked before validation).
      */
@@ -21,6 +23,16 @@ class SaveEventRequest extends FormRequest
         $event = $this->route('event');
 
         return ! $event instanceof Event || $this->user()->can('update', $event);
+    }
+
+    /**
+     * UPI IDs are case-insensitive: store them trimmed and lower-cased.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('upi_id')) {
+            $this->merge(['upi_id' => strtolower(trim((string) $this->input('upi_id')))]);
+        }
     }
 
     /**
@@ -34,6 +46,9 @@ class SaveEventRequest extends FormRequest
             'location' => ['nullable', 'string', 'max:250'],
             'proposed_amount' => ['required', 'numeric', 'min:1', 'max:'.self::MAX_AMOUNT, 'decimal:0,2'],
             'target_amount' => ['nullable', 'numeric', 'gte:proposed_amount', 'max:'.self::MAX_AMOUNT, 'decimal:0,2'],
+            // Where members pay directly from their UPI app, e.g. `pujacommittee@okaxis`.
+            'upi_id' => ['nullable', 'string', 'max:100', 'regex:'.self::UPI_ID_PATTERN],
+            'upi_payee_name' => ['nullable', 'string', 'max:100'],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'curriculum' => ['sometimes', 'array', 'max:50'],
@@ -75,6 +90,7 @@ class SaveEventRequest extends FormRequest
         return [
             'target_amount.gte' => 'The target amount must be at least the proposed amount.',
             'end_date.after_or_equal' => 'The end date must be on or after the start date.',
+            'upi_id.regex' => 'Enter a valid UPI ID, e.g. name@okaxis.',
             'curriculum.*.title.required' => 'Each programme item needs a title.',
             'curriculum.*.date.required' => 'Each programme item needs a date.',
         ];
